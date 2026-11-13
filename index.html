@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Woodfibre LNG Timeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout idea: one wide stage. Backdrop graphs sit above a time axis, event flip cards hang below it in lanes. */
+:root{
+  --bg:#EEF2F1; --surface:#FFFFFF; --ink:#13232B; --muted:#5A6B73; --line:#C9D3D2; --accent:#0E5E6F;
+  --c-company:#2D5F93; --c-regulatory:#6D4AA8; --c-municipal:#A8690F; --c-environment:#1E7C5A;
+  --l-gas:#C2338C; --l-build:#4E9A2E; --l-cost:#5E6F8E;
+  --font-display:"Bricolage Grotesque","Trebuchet MS",sans-serif;
+  --font-body:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  --shadow:0 1px 2px rgba(19,35,43,.08),0 6px 18px rgba(19,35,43,.08);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#0F1A1F; --surface:#18262D; --ink:#E6EEEE; --muted:#93A5AB; --line:#2C3D45; --accent:#6CC5D6;
+    --c-company:#7FB0E6; --c-regulatory:#B79CF0; --c-municipal:#E3AE55; --c-environment:#5FCB9F;
+    --l-gas:#F07CC4; --l-build:#8FD46A; --l-cost:#A9B7D4;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 22px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0F1A1F; --surface:#18262D; --ink:#E6EEEE; --muted:#93A5AB; --line:#2C3D45; --accent:#6CC5D6;
+  --c-company:#7FB0E6; --c-regulatory:#B79CF0; --c-municipal:#E3AE55; --c-environment:#5FCB9F;
+  --l-gas:#F07CC4; --l-build:#8FD46A; --l-cost:#A9B7D4;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 22px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:15px;line-height:1.45}
+.wrap{max-width:1280px;margin:0 auto;padding:24px 20px 40px;display:flex;flex-direction:column;gap:16px}
+header{display:flex;flex-direction:column;gap:6px}
+h1{font-family:var(--font-display);font-weight:700;font-size:clamp(26px,4vw,38px);line-height:1.05;margin:0;text-wrap:balance;letter-spacing:-.01em}
+.dek{margin:0;color:var(--muted);max-width:65ch}
+.notice{align-self:flex-start;font-size:13px;color:var(--ink);border:1px dashed var(--muted);border-radius:6px;padding:6px 10px;max-width:80ch}
+.notice b{font-weight:600}
+.controls{display:flex;flex-wrap:wrap;gap:14px 28px;align-items:flex-end}
+.group{display:flex;flex-direction:column;gap:6px}
+.group > span{font-family:var(--font-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+button{font:inherit;color:inherit;cursor:pointer}
+.chip{display:inline-flex;align-items:center;gap:7px;background:transparent;border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-size:13px;color:var(--muted);transition:background .15s,color .15s,border-color .15s}
+.chip:hover{border-color:var(--muted);color:var(--ink)}
+.chip .sw{width:10px;height:10px;border-radius:50%;background:var(--k,var(--muted));flex:none}
+.chip .n{font-family:var(--font-mono);font-size:11px;opacity:.75}
+.chip:not(.layer)[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.chip.layer .sw{border-radius:2px;width:14px;height:4px}
+.chip.layer[data-state="off"] .sw{background:transparent;outline:1px solid var(--muted)}
+.chip.layer[data-state="back"]{color:var(--ink);border-color:var(--k)}
+.chip.layer[data-state="focus"]{background:var(--k);border-color:var(--k);color:var(--bg)}
+.chip.layer[data-state="focus"] .sw{background:var(--bg)}
+.zoom{display:flex;gap:6px}
+.zoom button{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:5px 12px;font-size:13px;min-width:36px}
+.zoom button:hover{border-color:var(--muted)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.status{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 16px;font-size:13px;color:var(--muted)}
+.status strong{color:var(--ink);font-weight:600}
+
+#stage{position:relative;height:634px;background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;touch-action:pan-y;user-select:none;-webkit-user-select:none;cursor:grab}
+#stage.grabbing{cursor:grabbing}
+#svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+#svg text{font-family:var(--font-mono);font-size:11px;fill:var(--muted)}
+#svg .yr{font-size:12px;fill:var(--ink)}
+#svg .halo{paint-order:stroke;stroke:var(--surface);stroke-width:4px;stroke-linejoin:round}
+#svg .dot{cursor:pointer}
+#cards{position:absolute;inset:0;pointer-events:none}
+.card{position:absolute;pointer-events:auto;cursor:pointer;perspective:1000px;transition:top .25s ease,width .35s ease,height .35s ease;z-index:1}
+.card.flipped{z-index:5}
+.card .inner{position:absolute;inset:0;transform-style:preserve-3d;transition:transform .5s cubic-bezier(.3,.7,.2,1)}
+.card.flipped .inner{transform:rotateY(180deg)}
+.face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden;box-shadow:var(--shadow)}
+.front{border-left:4px solid var(--k);padding:8px 10px;display:flex;flex-direction:column;gap:3px}
+.card:hover .front{border-color:var(--k)}
+.meta{display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:11px;color:var(--muted);white-space:nowrap}
+.tag{font-family:var(--font-mono);font-size:10px;letter-spacing:.04em;text-transform:uppercase;border:1px dashed var(--muted);border-radius:3px;padding:0 4px;color:var(--muted)}
+.key{width:7px;height:7px;background:var(--k);transform:rotate(45deg);flex:none}
+.front h3{margin:0;font-family:var(--font-body);font-weight:600;font-size:13.5px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.foot{margin-top:auto;display:flex;justify-content:space-between;font-size:11px;color:var(--k)}
+.foot .flip{color:var(--muted)}
+.back{transform:rotateY(180deg);display:flex;flex-direction:column;cursor:default}
+.ph{height:104px;flex:none;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:11px;color:var(--muted);border-bottom:1px solid var(--line);
+  background:repeating-linear-gradient(135deg,transparent 0 10px,color-mix(in srgb,var(--k) 14%,transparent) 10px 20px)}
+.ph img{width:100%;height:100%;object-fit:cover;display:block}
+.bbody{padding:10px 14px;display:flex;flex-direction:column;gap:6px;min-height:0;flex:1}
+.back h3{margin:0;font-family:var(--font-display);font-weight:700;font-size:17px;line-height:1.15;text-wrap:balance}
+.back p{margin:0;font-size:13.5px;overflow:auto;flex:1;min-height:0;user-select:text;-webkit-user-select:text}
+.actions{display:flex;gap:8px;align-items:center;justify-content:space-between;padding-top:4px}
+.src{display:inline-block;background:var(--k);color:var(--surface);text-decoration:none;font-size:13px;font-weight:600;border-radius:6px;padding:6px 12px}
+.src:hover{filter:brightness(1.1)}
+.nosrc{font-size:12px;color:var(--muted);border:1px dashed var(--line);border-radius:6px;padding:5px 10px}
+.unflip{white-space:nowrap;background:none;border:none;color:var(--muted);font-size:12px;padding:6px 4px;text-decoration:underline}
+#mini{position:relative;height:26px;border:1px solid var(--line);border-radius:8px;background:var(--surface);cursor:pointer;overflow:hidden}
+#mini i{position:absolute;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:var(--k)}
+#mini i.off{opacity:.18}
+#mini .win{position:absolute;top:0;bottom:0;background:color-mix(in srgb,var(--accent) 16%,transparent);border-left:2px solid var(--accent);border-right:2px solid var(--accent)}
+.help{font-size:12.5px;color:var(--muted);margin:0}
+@media (max-width:520px){ .wrap{padding:16px 16px 32px} }
+@media (prefers-reduced-motion:reduce){ .card,.card .inner{transition:none} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Woodfibre LNG, 2006 to today</h1>
+    <p class="dek">From the pulp mill's closure to an LNG export plant under construction on Howe Sound. Zoom in for the full record, or follow a single thread.</p>
+    <div class="notice"><b>Working prototype with sample data.</b> 20 events stand in for the full 53. Cards tagged Draft come from the sketch and still need dates, figures and sources confirmed. The backdrop series are rough stand-ins too.</div>
+  </header>
+
+  <div class="controls">
+    <div class="group"><span>Backdrop</span><div class="chips" id="layerChips"></div></div>
+    <div class="group"><span>Follow a category</span><div class="chips" id="catChips"></div></div>
+    <div class="group"><span>Zoom</span>
+      <div class="zoom">
+        <button id="zOut" aria-label="Zoom out">−</button>
+        <button id="zIn" aria-label="Zoom in">+</button>
+        <button id="zAll">Whole timeline</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="status"><span id="status" aria-live="polite"></span><span id="range"></span></div>
+
+  <div id="stage" tabindex="0" aria-label="Timeline. Arrow keys pan, plus and minus zoom.">
+    <svg id="svg" aria-hidden="true"></svg>
+    <div id="cards"></div>
+  </div>
+  <div id="mini" aria-hidden="true"></div>
+  <p class="help">Drag to move through time. Pinch, double-click, or hold Ctrl and scroll to zoom. Click a card to flip it; click a small dot to zoom to that event. Click a backdrop layer to highlight it, and again to hide it.</p>
+</div>
+
+<script>
+/* ============================================================
+   DATA — edit here. Everything below this block is the engine.
+   tier: 1 = key event (shown on the whole timeline), 2 = shown at medium zoom, 3 = shown when zoomed in.
+   precision: "day" | "month" | "year".  img: a data: URI, or null for the placeholder.
+   ============================================================ */
+const CATEGORIES = {
+  company:     {label:"Company",         color:"var(--c-company)"},
+  regulatory:  {label:"Regulatory",      color:"var(--c-regulatory)"},
+  municipal:   {label:"Municipal & tax", color:"var(--c-municipal)"},
+  environment: {label:"Environment",     color:"var(--c-environment)"}
+};
+
+const EVENTS = [
+  {date:"2006-03-01",precision:"year",cat:"company",tier:1,draft:true,title:"Woodfibre pulp mill shuts down",
+   body:"The pulp mill on the Woodfibre site closes. The sketch notes a municipal tax figure at this point; add it here with its source.",source:null},
+  {date:"2013-12-16",precision:"month",cat:"regulatory",tier:1,title:"25-year export licence granted",
+   body:"The National Energy Board awards a 25-year licence to export about 2.1 million tonnes of LNG a year from the Squamish site.",
+   source:{label:"Canadian Manufacturing",url:"https://canadianmanufacturing.com/manufacturing/export-licence-for-b-c-lng-plant-extended-from-25-to-40-years-194542"}},
+  {date:"2015-06-01",precision:"year",approx:true,cat:"municipal",tier:2,draft:true,title:"Squamish learns it could collect about $7 million a year",
+   body:"From the sketch: the District finds out what the plant could pay annually based on assessed value. Date and figure to confirm.",source:null},
+  {date:"2015-10-14",precision:"day",cat:"regulatory",tier:2,title:"Squamish Nation approves conditional environmental agreement",
+   body:"Squamish Nation Council approves a conditional Environmental Assessment Agreement for the project, following the Nation's own review process.",
+   source:{label:"BC Energy Regulator",url:"https://www.bc-er.ca/what-we-regulate/major-projects/woodfibre-lng"}},
+  {date:"2015-10-26",precision:"day",cat:"regulatory",tier:1,title:"Province issues Environmental Assessment Certificate",
+   body:"British Columbia issues the project's Environmental Assessment Certificate, twelve days after the Squamish Nation decision.",
+   source:{label:"BC Energy Regulator",url:"https://www.bc-er.ca/what-we-regulate/major-projects/woodfibre-lng"}},
+  {date:"2017-04-06",precision:"day",cat:"regulatory",tier:3,title:"Energy board backs a 40-year licence term",
+   body:"The National Energy Board grants a 40-year export licence, pending federal cabinet approval. A 2015 rule change had raised the maximum term from 25 years.",
+   source:{label:"Woodfibre LNG",url:"https://woodfibrelng.ca/?p=366"}},
+  {date:"2017-06-05",precision:"day",cat:"regulatory",tier:1,title:"Ottawa approves 40-year export licence",
+   body:"The federal government approves the longer licence. The natural resources minister announces it during a speech in China. The project is described as a $1.6 billion plant at this point.",
+   source:{label:"CBC News",url:"https://www.cbc.ca/lite/story/1.4146268"}},
+  {date:"2019-06-01",precision:"month",cat:"company",tier:2,title:"BP signs binding purchase agreement",
+   body:"Woodfibre LNG Export signs a binding sales and purchase agreement with BP Gas Marketing, the project's first firm buyer.",
+   source:{label:"Offshore Technology",url:"https://www.offshore-technology.com/projects/woodfibre-lng-project-british-columbia/"}},
+  {date:"2021-05-01",precision:"month",cat:"company",tier:3,title:"BP raises its offtake to 1.5 mtpa",
+   body:"A second 15-year agreement lifts BP's share to 1.5 million tonnes a year of the plant's planned 2.1.",
+   source:{label:"Global Energy Monitor",url:"https://gem.wiki/Woodfibre_LNG_Terminal"}},
+  {date:"2021-09-01",precision:"month",cat:"environment",tier:1,draft:true,title:"Howe Sound named a UNESCO Biosphere Region",
+   body:"From the sketch: the sound the plant sits on receives UNESCO Biosphere status. Add the designation date and a source.",source:null},
+  {date:"2022-07-01",precision:"month",cat:"company",tier:2,title:"Enbridge agrees to co-invest",
+   body:"Pacific Energy and Enbridge agree to build and operate the plant together. Enbridge takes a 30 percent stake.",
+   source:{label:"Offshore Technology",url:"https://www.offshore-technology.com/projects/woodfibre-lng-project-british-columbia/"}},
+  {date:"2023-06-01",precision:"year",approx:true,cat:"municipal",tier:3,draft:true,title:"Tax payment: $1.5 million",
+   body:"From the sketch: the company's municipal tax bill before reclassification. Year and amount to confirm.",source:null},
+  {date:"2023-08-07",precision:"month",cat:"company",tier:2,title:"Cost estimate reaches US$5.1 billion",
+   body:"Ahead of the construction start, the plant's price tag is put at US$5.1 billion, roughly three times the figure cited in 2017.",
+   source:{label:"Global Energy Monitor",url:"https://gem.wiki/Woodfibre_LNG_Terminal"}},
+  {date:"2023-09-01",precision:"month",cat:"company",tier:1,title:"Construction begins on site",
+   body:"Work starts at the former mill site. The plant is assembled from modules built overseas and shipped to Howe Sound.",
+   source:{label:"LNG Prime",url:"https://lngprime.com/?p=168376"}},
+  {date:"2024-03-01",precision:"year",approx:true,cat:"municipal",tier:2,draft:true,title:"Site recategorized as major industry",
+   body:"From the sketch: the property moves into the major industry tax class once construction is under way. Date to confirm.",source:null},
+  {date:"2024-11-01",precision:"month",approx:true,cat:"environment",tier:2,draft:true,title:"Placeholder: spill or clean-up update",
+   body:"This card is a stand-in so the Environment thread has more than one stop. Replace it with the spill and clean-up events from the full list.",source:null},
+  {date:"2025-05-01",precision:"month",cat:"company",tier:2,title:"First seven modules arrive from China",
+   body:"The first prefabricated modules are delivered to the site.",
+   source:{label:"LNG Prime",url:"https://lngprime.com/?p=168376"}},
+  {date:"2025-06-01",precision:"year",approx:true,cat:"municipal",tier:3,draft:true,title:"Tax payment: $7.2 million",
+   body:"From the sketch: the tax bill after reclassification. Year and amount to confirm.",source:null},
+  {date:"2025-09-01",precision:"month",cat:"company",tier:2,title:"Cost estimate rises to $8.8 billion",
+   body:"The company updates the total project cost to $8.8 billion, with the build past its halfway point.",
+   source:{label:"Gas Processing & LNG",url:"https://www.gasprocessingnews.com/news/2025/09/woodfibre-lng-canada-project-cost-increases-to-88-b/"}},
+  {date:"2026-08-25",precision:"month",approx:true,cat:"municipal",tier:1,draft:true,title:"Tax exemption bylaw for Woodfibre lands",
+   body:"District of Squamish Bylaw No. 3273 sets up a revitalization tax exemption for the Woodfibre LNG lands, tied to a community payments agreement. The sketch calls this the front-loaded tax deal. Confirm the adoption date and amounts.",
+   source:{label:"District of Squamish",url:"https://squamish.ca/assets/WLNG/RTE-Bylaw-FINAL-25-Aug-26.pdf"}}
+];
+
+/* Backdrop layers. type: "line" | "step" | "area". points: [date, value]. */
+const LAYERS = {
+  gas:  {label:"Natural gas price", color:"var(--l-gas)", type:"line", unit:"US$ per MMBtu",
+         note:"Henry Hub annual averages, approximate. Swap in the final benchmark series.",
+         fmt:v=>"$"+v.toFixed(2),
+         points:[["2006-07-01",6.73],["2007-07-01",6.97],["2008-07-01",8.86],["2009-07-01",3.94],["2010-07-01",4.37],["2011-07-01",4.00],["2012-07-01",2.75],["2013-07-01",3.73],["2014-07-01",4.37],["2015-07-01",2.62],["2016-07-01",2.52],["2017-07-01",2.99],["2018-07-01",3.15],["2019-07-01",2.56],["2020-07-01",2.03],["2021-07-01",3.89],["2022-07-01",6.45],["2023-07-01",2.53],["2024-07-01",2.19]]},
+  build:{label:"Construction progress", color:"var(--l-build)", type:"area", unit:"percent complete",
+         note:"Two reported points only: start of work and the halfway mark. Add the real progress series.",
+         fmt:v=>Math.round(v)+"%", max:100,
+         points:[["2023-09-01",0],["2025-09-01",50]]},
+  cost: {label:"Project cost estimate", color:"var(--l-cost)", type:"step", unit:"billions, as reported",
+         note:"Reported estimates; currencies as reported.",
+         fmt:v=>"$"+v.toFixed(1)+"B", toToday:true,
+         points:[["2014-01-01",1.6],["2023-08-07",5.1],["2025-09-01",8.8]]}
+};
+const DOMAIN = ["2006-01-01","2027-06-01"];
+
+/* ============================ ENGINE ============================ */
+const T = s => { const [y,m,d] = s.split("-").map(Number); return Date.UTC(y,m-1,d||1); };
+const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const D0 = T(DOMAIN[0]), D1 = T(DOMAIN[1]), TOTAL = D1 - D0, YEAR = 365.25*864e5, MAXK = 40;
+const NOW = Math.min(Date.now(), D1);
+const G = {chartTop:16, axisY:232, laneTop:274, cardH:104, laneGap:10, lanes:3};
+const reduce = matchMedia("(prefers-reduced-motion:reduce)").matches;
+
+EVENTS.forEach((e,i)=>{ e.id=i; e.t=T(e.date); });
+EVENTS.sort((a,b)=>a.t-b.t);
+Object.values(LAYERS).forEach(L=>{ L.pts=L.points.map(p=>[T(p[0]),p[1]]); L.max=L.max||Math.max(...L.pts.map(p=>p[1])); });
+
+const state = {start:D0, span:TOTAL, cat:null, layers:{gas:"focus",build:"back",cost:"off"}, flipped:null, hoverX:null};
+const $ = id => document.getElementById(id);
+const stage=$("stage"), svg=$("svg"), cardsEl=$("cards"), mini=$("mini");
+let W = 0;
+
+function fmtDate(e){
+  const d=new Date(e.t), y=d.getUTCFullYear(), m=MON[d.getUTCMonth()];
+  const s = e.precision==="day" ? `${m} ${d.getUTCDate()}, ${y}` : e.precision==="month" ? `${m} ${y}` : `${y}`;
+  return (e.approx?"c. ":"")+s;
+}
+const esc = s => s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const X = t => (t-state.start)/state.span*W;
+const tAt = px => state.start + px/W*state.span;
+const K = () => TOTAL/state.span;
+function clampView(){
+  state.span=Math.max(TOTAL/MAXK,Math.min(TOTAL,state.span));
+  state.start=Math.max(D0,Math.min(D1-state.span,state.start));
+}
+
+/* ---------- controls ---------- */
+function buildChips(){
+  const lc=$("layerChips");
+  for(const [k,L] of Object.entries(LAYERS)){
+    const b=document.createElement("button");
+    b.className="chip layer"; b.style.setProperty("--k",L.color); b.dataset.k=k; b.title=L.note;
+    b.innerHTML=`<span class="sw"></span>${L.label}`;
+    b.onclick=()=>{
+      const s=state.layers[k];
+      if(s==="focus"){ state.layers[k]="off"; const o=Object.keys(LAYERS).find(j=>state.layers[j]==="back"); if(o) state.layers[o]="focus"; }
+      else { for(const j in state.layers) if(state.layers[j]==="focus") state.layers[j]="back"; state.layers[k]="focus"; }
+      syncChips(); draw();
+    };
+    lc.appendChild(b);
+  }
+  const cc=$("catChips");
+  const mk=(key,label,color,n)=>{
+    const b=document.createElement("button");
+    b.className="chip"; b.dataset.k=key||""; if(color) b.style.setProperty("--k",color);
+    b.innerHTML=(color?`<span class="sw"></span>`:"")+`${label} <span class="n">${n}</span>`;
+    b.onclick=()=>{ state.cat=key; state.flipped=null; syncChips(); draw(); };
+    cc.appendChild(b);
+  };
+  mk(null,"All",null,EVENTS.length);
+  for(const [k,c] of Object.entries(CATEGORIES)) mk(k,c.label,c.color,EVENTS.filter(e=>e.cat===k).length);
+}
+function syncChips(){
+  document.querySelectorAll("#layerChips .chip").forEach(b=>{ const s=state.layers[b.dataset.k]; b.dataset.state=s; b.setAttribute("aria-pressed",s!=="off"); });
+  document.querySelectorAll("#catChips .chip").forEach(b=>b.setAttribute("aria-pressed",(b.dataset.k||null)===state.cat));
+}
+
+/* ---------- cards ---------- */
+function buildCards(){
+  for(const e of EVENTS){
+    const c=CATEGORIES[e.cat], el=document.createElement("article");
+    el.className="card"; el.style.setProperty("--k",c.color); el.tabIndex=0;
+    el.setAttribute("role","button"); el.setAttribute("aria-label",`${fmtDate(e)}: ${e.title}. Flip for details.`);
+    const src = e.source
+      ? `<a class="src" href="${e.source.url}" target="_blank" rel="noopener">Source: ${esc(e.source.label)} ↗</a>`
+      : `<span class="nosrc">Source to add</span>`;
+    el.innerHTML=`<div class="inner">
+      <div class="face front">
+        <div class="meta">${e.tier===1?'<span class="key" title="Key event"></span>':''}<span>${fmtDate(e)}</span>${e.draft?'<span class="tag">Draft</span>':''}</div>
+        <h3>${esc(e.title)}</h3>
+        <div class="foot"><span>${c.label}</span><span class="flip">Flip ↻</span></div>
+      </div>
+      <div class="face back" inert>
+        <div class="ph">${e.img?`<img alt="" src="${e.img}">`:"Photo goes here"}</div>
+        <div class="bbody">
+          <div class="meta"><span>${fmtDate(e)}</span><span style="color:var(--k)">${c.label}</span>${e.draft?'<span class="tag">Draft</span>':''}</div>
+          <h3>${esc(e.title)}</h3>
+          <p>${esc(e.body)}</p>
+          <div class="actions">${src}<button class="unflip" type="button">Flip back</button></div>
+        </div>
+      </div></div>`;
+    el.addEventListener("click",ev=>{ if(ev.target.closest("a")) return; ev.stopPropagation(); flip(e.id); });
+    el.addEventListener("keydown",ev=>{ if((ev.key==="Enter"||ev.key===" ")&&ev.target===el){ ev.preventDefault(); flip(e.id); } });
+    e.el=el; cardsEl.appendChild(el);
+  }
+}
+function flip(id){
+  state.flipped = state.flipped===id ? null : id;
+  for(const e of EVENTS){
+    const on=e.id===state.flipped;
+    e.el.classList.toggle("flipped",on);
+    e.el.querySelector(".back").inert=!on;
+    e.el.querySelector(".front").inert=on;
+  }
+  draw();
+}
+
+/* ---------- drawing ---------- */
+let queued=false;
+function draw(){ if(queued) return; queued=true; requestAnimationFrame(()=>{ queued=false; render(); }); }
+
+function layerValue(L,t){
+  const p=L.pts;
+  if(t<p[0][0]) return null;
+  if(L.type==="step"){ if(t>NOW) return null; let v=null; for(const q of p) if(q[0]<=t) v=q[1]; return v; }
+  if(t>p[p.length-1][0]) return null;
+  for(let i=1;i<p.length;i++) if(t<=p[i][0]){ const a=p[i-1],b=p[i]; return a[1]+(b[1]-a[1])*(t-a[0])/(b[0]-a[0]); }
+  return null;
+}
+function layerPath(L){
+  const h=(G.axisY-G.chartTop)*0.9, y=v=>G.axisY-v/L.max*h, p=L.pts;
+  let d="";
+  if(L.type==="step"){
+    p.forEach((q,i)=>{ const x=X(q[0]); d+= i? `H${x.toFixed(1)}V${y(q[1]).toFixed(1)}` : `M${x.toFixed(1)},${y(q[1]).toFixed(1)}`; });
+    d+=`H${X(NOW).toFixed(1)}`;
+  } else {
+    p.forEach((q,i)=>{ d+=(i?"L":"M")+X(q[0]).toFixed(1)+","+y(q[1]).toFixed(1); });
+  }
+  const x0=X(p[0][0]).toFixed(1), x1=(L.type==="step"?X(NOW):X(p[p.length-1][0])).toFixed(1);
+  return {line:d, area:`${d}L${x1},${G.axisY}L${x0},${G.axisY}Z`, y};
+}
+
+function render(){
+  W = stage.clientWidth;
+  const H = stage.clientHeight, narrow = W<560;
+  const cardW = narrow?150:188, gap=10;
+  svg.setAttribute("viewBox",`0 0 ${W} ${H}`);
+  let s="";
+
+  /* year bands + ticks */
+  const pxYear = W/(state.span/YEAR);
+  const stepY = pxYear>=46?1:pxYear>=22?2:5;
+  const y0=new Date(state.start).getUTCFullYear(), y1=new Date(state.start+state.span).getUTCFullYear()+1;
+  for(let y=y0;y<=y1;y++){
+    const x=X(Date.UTC(y,0,1));
+    if(x<-2||x>W+2) { if(pxYear<=300) continue; }
+    if(x>=-2&&x<=W+2){
+      s+=`<line x1="${x}" x2="${x}" y1="${G.chartTop}" y2="${G.axisY+6}" style="stroke:var(--line)" stroke-width="1" ${y%stepY?'stroke-dasharray="1 5"':''}/>`;
+      if(y%stepY===0) s+=`<text class="yr" x="${x+4}" y="${G.axisY+20}">${y}</text>`;
+    }
+    if(pxYear>300){
+      for(let m=1;m<12;m++){
+        const xm=X(Date.UTC(y,m,1)); if(xm<0||xm>W) continue;
+        s+=`<line x1="${xm}" x2="${xm}" y1="${G.axisY}" y2="${G.axisY+5}" style="stroke:var(--muted)"/>`;
+        if(pxYear>640||m%3===0) s+=`<text x="${xm+3}" y="${G.axisY+20}">${MON[m]}</text>`;
+      }
+    }
+  }
+
+  /* backdrop layers: background ones first, focused on top */
+  const order=Object.keys(LAYERS).filter(k=>state.layers[k]==="back").concat(Object.keys(LAYERS).filter(k=>state.layers[k]==="focus"));
+  let focus=null;
+  for(const k of order){
+    const L=LAYERS[k], P=layerPath(L), f=state.layers[k]==="focus";
+    if(f){ focus=L; focus.P=P; }
+    if(f||L.type==="area") s+=`<path d="${P.area}" style="fill:${L.color}" opacity="${f?.16:.07}"/>`;
+    s+=`<path d="${P.line}" fill="none" style="stroke:${L.color}" stroke-width="${f?2.25:1.25}" opacity="${f?1:.45}" stroke-linejoin="round" stroke-linecap="round"/>`;
+  }
+  if(focus){
+    for(const fr of [0.5,1]){
+      const v=focus.max*fr, y=focus.P.y(v);
+      s+=`<line x1="0" x2="${W}" y1="${y}" y2="${y}" style="stroke:${focus.color}" opacity=".25" stroke-dasharray="2 4"/>`;
+      s+=`<text class="halo" x="8" y="${y-4}" style="fill:${focus.color}">${focus.fmt(v)}</text>`;
+    }
+    s+=`<text class="halo" x="${W-8}" y="${G.chartTop+12}" text-anchor="end" style="fill:${focus.color}">${focus.label} · ${focus.unit}</text>`;
+  }
+
+  /* axis + today */
+  s+=`<line x1="0" x2="${W}" y1="${G.axisY}" y2="${G.axisY}" style="stroke:var(--ink)" stroke-width="1.5"/>`;
+  const xn=X(NOW);
+  if(xn>=0&&xn<=W){
+    s+=`<line x1="${xn}" x2="${xn}" y1="${G.chartTop+18}" y2="${G.axisY}" style="stroke:var(--accent)" stroke-dasharray="4 3" stroke-width="1.5"/>`;
+    s+=`<text class="halo" x="${xn-5}" y="${G.chartTop+30}" text-anchor="end" style="fill:var(--accent)">Today</text>`;
+  }
+
+  /* which events get cards */
+  const k=K(), tierMax = state.cat ? 3 : k<1.6 ? 1 : k<4 ? 2 : 3;
+  const match = EVENTS.filter(e=>!state.cat||e.cat===state.cat);
+  const inView = match.filter(e=>{ const x=X(e.t); return x>=-4&&x<=W+4; });
+  const cand = inView.filter(e=>e.tier<=tierMax||e.id===state.flipped)
+    .sort((a,b)=>(b.id===state.flipped)-(a.id===state.flipped)||a.tier-b.tier||a.t-b.t);
+  const lanes=Array.from({length:G.lanes},()=>[]), placed=new Map();
+  for(const e of cand){
+    const cx=Math.max(6,Math.min(W-cardW-6,X(e.t)-16));
+    for(let i=0;i<G.lanes;i++){
+      if(lanes[i].every(a=>cx+cardW+gap<=a||cx>=a+cardW+gap)){ lanes[i].push(cx); placed.set(e.id,{cx,lane:i}); break; }
+    }
+  }
+
+  /* connectors, dots */
+  for(const e of inView){
+    const x=X(e.t), p=placed.get(e.id), col=CATEGORIES[e.cat].color;
+    if(p){
+      const top=G.laneTop+p.lane*(G.cardH+G.laneGap);
+      s+=`<line x1="${x}" x2="${x}" y1="${G.axisY}" y2="${top}" style="stroke:${col}" stroke-width="1.25" opacity=".7"/>`;
+      s+=`<circle cx="${x}" cy="${G.axisY}" r="5" style="fill:${col};stroke:var(--surface)" stroke-width="2"/>`;
+    } else {
+      s+=`<circle class="dot" data-id="${e.id}" cx="${x}" cy="${G.axisY}" r="4" style="fill:var(--surface);stroke:${col}" stroke-width="2"><title>${esc(fmtDate(e)+": "+e.title)}</title></circle>`;
+    }
+  }
+
+  /* hover readout on the highlighted layer */
+  if(focus&&state.hoverX!=null){
+    const t=tAt(state.hoverX), v=layerValue(focus,t);
+    if(v!=null){
+      const y=focus.P.y(v), d=new Date(t), right=state.hoverX>W-150;
+      s+=`<line x1="${state.hoverX}" x2="${state.hoverX}" y1="${G.chartTop}" y2="${G.axisY}" style="stroke:var(--muted)" opacity=".5"/>`;
+      s+=`<circle cx="${state.hoverX}" cy="${y}" r="4" style="fill:${focus.color};stroke:var(--surface)" stroke-width="2"/>`;
+      s+=`<text class="halo" x="${state.hoverX+(right?-8:8)}" y="${Math.max(G.chartTop+12,y-8)}" text-anchor="${right?"end":"start"}" style="fill:var(--ink)">${focus.fmt(v)} · ${MON[d.getUTCMonth()]} ${d.getUTCFullYear()}</text>`;
+    }
+  }
+  svg.innerHTML=s;
+
+  /* position cards */
+  const FW=Math.min(310,W-16), FH=318;
+  for(const e of EVENTS){
+    const p=placed.get(e.id);
+    if(!p){ e.el.style.display="none"; if(state.flipped===e.id){ state.flipped=null; e.el.classList.remove("flipped"); } continue; }
+    const top=G.laneTop+p.lane*(G.cardH+G.laneGap), on=e.id===state.flipped;
+    e.el.style.display="";
+    e.el.style.width=(on?FW:cardW)+"px";
+    e.el.style.height=(on?FH:G.cardH)+"px";
+    e.el.style.left=(on?Math.max(8,Math.min(W-FW-8,p.cx)):p.cx)+"px";
+    e.el.style.top=(on?Math.min(top,H-FH-8):top)+"px";
+  }
+
+  /* status + overview strip */
+  const what = state.cat ? CATEGORIES[state.cat].label+" events" : "events";
+  let msg=`Showing <strong>${placed.size}</strong> of ${match.length} ${what}.`;
+  if(!state.cat&&tierMax===1) msg+=" These are the key moments. Zoom in for the rest.";
+  else if(placed.size<inView.length) msg+=" Small dots are events waiting for room. Zoom in to open them.";
+  $("status").innerHTML=msg;
+  const a=new Date(state.start), b=new Date(state.start+state.span);
+  $("range").textContent=`${MON[a.getUTCMonth()]} ${a.getUTCFullYear()} to ${MON[b.getUTCMonth()]} ${b.getUTCFullYear()}`;
+  mini.querySelector(".win").style.cssText=`left:${(state.start-D0)/TOTAL*100}%;width:${state.span/TOTAL*100}%`;
+  mini.querySelectorAll("i").forEach((d,i)=>d.classList.toggle("off",!!state.cat&&EVENTS[i].cat!==state.cat));
+}
+
+/* ---------- zoom + pan ---------- */
+let anim=null;
+function animateTo(start,span){
+  span=Math.max(TOTAL/MAXK,Math.min(TOTAL,span)); start=Math.max(D0,Math.min(D1-span,start));
+  cancelAnimationFrame(anim);
+  if(reduce){ state.start=start; state.span=span; draw(); return; }
+  const s0=state.start, p0=state.span, t0=performance.now();
+  (function step(now){
+    const u=Math.min(1,(now-t0)/320), e=1-Math.pow(1-u,3);
+    state.start=s0+(start-s0)*e; state.span=p0+(span-p0)*e; render();
+    if(u<1) anim=requestAnimationFrame(step);
+  })(t0);
+}
+function zoomAt(f,px,animate){
+  const t=tAt(px), span=Math.max(TOTAL/MAXK,Math.min(TOTAL,state.span/f)), start=t-px/W*span;
+  if(animate) animateTo(start,span); else { state.start=start; state.span=span; clampView(); draw(); }
+}
+$("zIn").onclick=()=>zoomAt(1.8,W/2,true);
+$("zOut").onclick=()=>zoomAt(1/1.8,W/2,true);
+$("zAll").onclick=()=>animateTo(D0,TOTAL);
+
+function goToEvent(id){
+  const e=EVENTS.find(v=>v.id===id), need = state.cat?1:e.tier===1?1:e.tier===2?1.7:4.2;
+  const k=Math.min(MAXK,Math.max(K()*1.9,need)), span=TOTAL/k;
+  animateTo(e.t-span/2,span);
+}
+svg.addEventListener("click",ev=>{ const d=ev.target.closest(".dot"); if(d){ ev.stopPropagation(); goToEvent(+d.dataset.id); } });
+
+const ptrs=new Map(); let drag=null, pinch=null, suppress=false;
+const local = ev => { const r=stage.getBoundingClientRect(); return {x:ev.clientX-r.left,y:ev.clientY-r.top}; };
+stage.addEventListener("pointerdown",ev=>{
+  if(ev.button>0) return;
+  ptrs.set(ev.pointerId,local(ev));
+  if(ptrs.size===1) drag={x:ev.clientX,start:state.start,moved:false,id:ev.pointerId};
+  if(ptrs.size===2){ const [a,b]=[...ptrs.values()]; pinch={d:Math.abs(a.x-b.x)||1,span:state.span,mid:(a.x+b.x)/2,t:tAt((a.x+b.x)/2)}; drag=null; }
+});
+stage.addEventListener("pointermove",ev=>{
+  const p=local(ev);
+  if(ptrs.has(ev.pointerId)) ptrs.set(ev.pointerId,p);
+  if(pinch&&ptrs.size>=2){
+    const [a,b]=[...ptrs.values()], d=Math.abs(a.x-b.x)||1;
+    state.span=pinch.span*pinch.d/d; clampView(); state.start=pinch.t-pinch.mid/W*state.span; clampView(); suppress=true; draw(); return;
+  }
+  if(drag&&ev.pointerId===drag.id){
+    const dx=ev.clientX-drag.x;
+    if(!drag.moved&&Math.abs(dx)>5){ drag.moved=true; stage.classList.add("grabbing"); try{stage.setPointerCapture(ev.pointerId);}catch(_){} }
+    if(drag.moved){ cancelAnimationFrame(anim); state.start=drag.start-dx/W*state.span; clampView(); draw(); }
+    return;
+  }
+  const hx = (p.y<=G.axisY&&ev.pointerType!=="touch") ? p.x : null;
+  if(hx!==state.hoverX){ state.hoverX=hx; draw(); }
+});
+function endPtr(ev){
+  ptrs.delete(ev.pointerId);
+  if(ptrs.size<2) pinch=null;
+  if(drag&&ev.pointerId===drag.id){ if(drag.moved){ suppress=true; } drag=null; stage.classList.remove("grabbing"); }
+  if(suppress) setTimeout(()=>suppress=false,0);
+}
+stage.addEventListener("pointerup",endPtr); stage.addEventListener("pointercancel",endPtr);
+stage.addEventListener("pointerleave",()=>{ if(state.hoverX!=null){ state.hoverX=null; draw(); } });
+stage.addEventListener("click",ev=>{ if(suppress){ ev.stopPropagation(); ev.preventDefault(); } },true);
+stage.addEventListener("click",()=>{ if(state.flipped!=null) flip(state.flipped); });
+stage.addEventListener("dblclick",ev=>{ if(ev.target.closest(".card")) return; zoomAt(2,local(ev).x,true); });
+stage.addEventListener("wheel",ev=>{
+  if(ev.ctrlKey||ev.metaKey){ ev.preventDefault(); zoomAt(Math.exp(-ev.deltaY*0.012),local(ev).x); }
+  else if(Math.abs(ev.deltaX)>Math.abs(ev.deltaY)){ ev.preventDefault(); state.start+=ev.deltaX/W*state.span; clampView(); draw(); }
+},{passive:false});
+stage.addEventListener("keydown",ev=>{
+  if(ev.key==="Escape"&&state.flipped!=null){ const e=EVENTS.find(v=>v.id===state.flipped); flip(state.flipped); e.el.focus(); return; }
+  if(ev.target!==stage) return;
+  if(ev.key==="ArrowLeft"||ev.key==="ArrowRight"){ ev.preventDefault(); animateTo(state.start+(ev.key==="ArrowLeft"?-1:1)*state.span*0.25,state.span); }
+  if(ev.key==="+"||ev.key==="=") zoomAt(1.8,W/2,true);
+  if(ev.key==="-") zoomAt(1/1.8,W/2,true);
+});
+mini.addEventListener("click",ev=>{ const r=mini.getBoundingClientRect(); animateTo(D0+(ev.clientX-r.left)/r.width*TOTAL-state.span/2,state.span); });
+
+/* ---------- start ---------- */
+buildChips(); buildCards();
+mini.innerHTML=EVENTS.map(e=>`<i style="left:${(e.t-D0)/TOTAL*100}%;--k:${CATEGORIES[e.cat].color}"></i>`).join("")+'<div class="win"></div>';
+syncChips(); render();
+new ResizeObserver(()=>draw()).observe(stage);
+</script>
+</body>
+</html>
